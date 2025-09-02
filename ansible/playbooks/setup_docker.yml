@@ -2,4 +2,4 @@
 - hosts: test,prod
   become: true
   roles:
-    - docker
+    - ../roles/docker
