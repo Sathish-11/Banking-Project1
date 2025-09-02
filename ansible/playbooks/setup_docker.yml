@@ -1,5 +1,5 @@
 ---
-- hosts: test:prod
+- hosts: test,prod
   become: true
   roles:
     - docker
