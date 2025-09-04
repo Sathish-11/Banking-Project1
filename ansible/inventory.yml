@@ -8,8 +8,8 @@ all:
     test:
       hosts:
         test-server:
-          ansible_host: 192.168.112.129
+          ansible_host: 192.168.1.13
     prod:
       hosts:
         prod-server:
-          ansible_host: 192.168.112.130
+          ansible_host: 192.168.1.14
