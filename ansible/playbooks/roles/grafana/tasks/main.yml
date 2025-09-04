@@ -4,7 +4,11 @@
     name:
       - adduser
       - libfontconfig1
+      - musl
+      - openssl
+      - libstdc++
     state: present
+    update_cache: yes
 
 - name: Download Grafana
   unarchive:
@@ -13,32 +17,61 @@
     remote_src: yes
     creates: /opt/grafana-10.4.2
 
-- name: Create symlink
-  file:
-    src: /opt/grafana-10.4.2
-    dest: /opt/grafana
-    state: link
-
 - name: Create grafana user
   user:
     name: grafana
     system: yes
     shell: /bin/false
 
-- name: Create data directory
+- name: Create data and log directories
   file:
-    path: /var/lib/grafana
+    path: "{{ item }}"
     state: directory
     owner: grafana
     group: grafana
     mode: '0755'
+  loop:
+    - /var/lib/grafana
+    - /var/log/grafana
 
 - name: Copy Grafana binary
   copy:
     remote_src: yes
-    src: /opt/grafana/bin/grafana-server
+    src: /opt/grafana-10.4.2/bin/grafana-server
     dest: /usr/local/bin/grafana-server
     mode: '0755'
+    owner: grafana
+    group: grafana
+
+- name: Create Grafana configuration
+  copy:
+    dest: /etc/grafana.ini
+    content: |
+      [server]
+      http_addr = 0.0.0.0
+      http_port = 3000
+      domain = localhost
+
+      [database]
+      type = sqlite3
+      path = /var/lib/grafana/grafana.db
+
+      [security]
+      admin_user = admin
+      admin_password = admin123
+      secret_key = SW2YcwTIb9zpOOhoPsMm
+
+      [auth.anonymous]
+      enabled = true
+      org_name = Main Org.
+      org_role = Viewer
+
+      [log]
+      mode = file
+      level = info
+    owner: grafana
+    group: grafana
+    mode: '0640'
 
 - name: Create systemd service for Grafana
   copy:
@@ -51,42 +84,16 @@
       [Service]
       User=grafana
       Group=grafana
+      Type=simple
       ExecStart=/usr/local/bin/grafana-server \
-        --config=/etc/grafana/grafana.ini \
-        --homepath=/opt/grafana \
+        --config=/etc/grafana.ini \
+        --homepath=/opt/grafana-10.4.2 \
         --packaging=tar
-      Restart=always
+      Restart=on-failure
+      LimitNOFILE=10000
 
       [Install]
       WantedBy=multi-user.target
-
-- name: Create Grafana configuration
-  copy:
-    dest: /etc/grafana/grafana.ini
-    content: |
-      [server]
-      http_addr = 0.0.0.0
-      http_port = 3000
-
-      [security]
-      admin_user = admin
-      admin_password = admin123  # Change this in production!
-
-      [database]
-      path = /var/lib/grafana/grafana.db
-
-      [auth.anonymous]
-      enabled = true
-      org_name = Main Org.
-      org_role = Viewer
-
-- name: Set permissions
-  file:
-    path: /etc/grafana
-    state: directory
-    owner: grafana
-    group: grafana
-    mode: '0755'
 
 - name: Reload systemd
   systemd:
