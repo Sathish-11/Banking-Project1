@@ -1,9 +1,12 @@
+# inventory.yml
 all:
   vars:
     ansible_user: devopsadmin
     ansible_python_interpreter: /usr/bin/python3
     ansible_ssh_common_args: '-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null'
     ansible_ssh_pipelining: yes
+    ansible_become: yes
+    ansible_become_method: sudo
   children:
     test:
       hosts:
@@ -13,3 +16,7 @@ all:
       hosts:
         prod-server:
           ansible_host: 192.168.1.14
+    monitoring:  # Add monitoring group
+      hosts:
+        monitor-server:
+          ansible_host: 192.168.1.16  # or use one of your existing servers
