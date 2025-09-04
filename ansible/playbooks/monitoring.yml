@@ -1,12 +1,5 @@
 ---
-- name: Setup monitoring on test environment    # This will run only on test hosts
-  hosts: test
-  gather_facts: yes
-  roles:
-    - node_exporter
-
-- name: Setup monitoring on production environment  # This will be SKIPPED because no prod hosts match the limit
-  hosts: prod  
-  gather_facts: yes
+- hosts: test,prod
+  become: true
   roles:
     - node_exporter
