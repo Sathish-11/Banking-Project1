@@ -1,5 +1,12 @@
 ---
-- hosts: test:prod
-  become: true
+- name: Setup app on test environment    # This will run only on test hosts
+  hosts: test
+  gather_facts: yes
   roles:
-    - app 
+    - app
+
+- name: Setup app on production environment  # This will be SKIPPED because no prod hosts match the limit
+  hosts: prod  
+  gather_facts: yes
+  roles:
+    - app
