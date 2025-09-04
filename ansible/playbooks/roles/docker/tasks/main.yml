@@ -1,5 +1,5 @@
 ---
-- name: Ensure required packages are installed
+- name: Ensure required system packages are installed
   apt:
     name:
       - ca-certificates
@@ -9,21 +9,21 @@
     state: present
     update_cache: yes
 
-- name: Create keyrings directory
+- name: Create keyrings directory for Docker
   file:
     path: /etc/apt/keyrings
     state: directory
     mode: '0755'
 
-- name: Add Docker's official GPG key
-  get_url:
-    url: https://download.docker.com/linux/ubuntu/gpg
-    dest: /etc/apt/keyrings/docker.asc
-    mode: '0644'
+- name: Add Docker’s official GPG key
+  ansible.builtin.shell: |
+    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+  args:
+    creates: /etc/apt/keyrings/docker.gpg
 
 - name: Add Docker apt repository
   apt_repository:
-    repo: "deb [arch={{ ansible_architecture }} signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu {{ ansible_facts['distribution_release'] }} stable"
+    repo: "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu {{ ansible_facts['distribution_release'] }} stable"
     state: present
     filename: docker
 
@@ -31,7 +31,7 @@
   apt:
     update_cache: yes
 
-- name: Install Docker packages
+- name: Install Docker Engine packages
   apt:
     name:
       - docker-ce
@@ -46,3 +46,4 @@
     name: docker
     state: started
     enabled: yes
+

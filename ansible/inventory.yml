@@ -2,13 +2,16 @@ all:
   vars:
     ansible_user: devopsadmin
     ansible_python_interpreter: /usr/bin/python3
+    ansible_become: yes
+    ansible_ssh_common_args: '-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null'
+    ansible_ssh_pipelining: yes
   children:
     test:
       hosts:
-        test-vm:
-          ansible_host: 192.168.17.134
+        test-server:
+          ansible_host: 192.168.112.129
     prod:
       hosts:
-        prod-vm:
-          ansible_host: 192.168.17.135
+        prod-server:
+          ansible_host: 192.168.112.130
 
