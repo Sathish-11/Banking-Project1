@@ -6,7 +6,6 @@
       - libfontconfig1
       - musl
       - openssl
-      - libstdc++
     state: present
     update_cache: yes
 
