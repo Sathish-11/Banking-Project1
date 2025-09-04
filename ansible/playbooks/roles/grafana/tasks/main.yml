@@ -1,0 +1,105 @@
+---
+- name: Install dependencies
+  apt:
+    name:
+      - adduser
+      - libfontconfig1
+    state: present
+
+- name: Download Grafana
+  unarchive:
+    src: https://dl.grafana.com/oss/release/grafana-10.4.2.linux-amd64.tar.gz
+    dest: /opt
+    remote_src: yes
+    creates: /opt/grafana-10.4.2
+
+- name: Create symlink
+  file:
+    src: /opt/grafana-10.4.2
+    dest: /opt/grafana
+    state: link
+
+- name: Create grafana user
+  user:
+    name: grafana
+    system: yes
+    shell: /bin/false
+
+- name: Create data directory
+  file:
+    path: /var/lib/grafana
+    state: directory
+    owner: grafana
+    group: grafana
+    mode: '0755'
+
+- name: Copy Grafana binary
+  copy:
+    remote_src: yes
+    src: /opt/grafana/bin/grafana-server
+    dest: /usr/local/bin/grafana-server
+    mode: '0755'
+
+- name: Create systemd service for Grafana
+  copy:
+    dest: /etc/systemd/system/grafana.service
+    content: |
+      [Unit]
+      Description=Grafana
+      After=network-online.target
+
+      [Service]
+      User=grafana
+      Group=grafana
+      ExecStart=/usr/local/bin/grafana-server \
+        --config=/etc/grafana/grafana.ini \
+        --homepath=/opt/grafana \
+        --packaging=tar
+      Restart=always
+
+      [Install]
+      WantedBy=multi-user.target
+
+- name: Create Grafana configuration
+  copy:
+    dest: /etc/grafana/grafana.ini
+    content: |
+      [server]
+      http_addr = 0.0.0.0
+      http_port = 3000
+
+      [security]
+      admin_user = admin
+      admin_password = admin123  # Change this in production!
+
+      [database]
+      path = /var/lib/grafana/grafana.db
+
+      [auth.anonymous]
+      enabled = true
+      org_name = Main Org.
+      org_role = Viewer
+
+- name: Set permissions
+  file:
+    path: /etc/grafana
+    state: directory
+    owner: grafana
+    group: grafana
+    mode: '0755'
+
+- name: Reload systemd
+  systemd:
+    daemon_reload: yes
+
+- name: Enable & start Grafana
+  systemd:
+    name: grafana
+    enabled: yes
+    state: started
+
+- name: Wait for Grafana to start
+  wait_for:
+    port: 3000
+    delay: 10
+    timeout: 120
