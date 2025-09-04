@@ -1,13 +1,16 @@
 - name: Pull Docker image
-  community.docker.docker_image:
+  docker_image:
     name: "{{ docker_image }}:{{ docker_tag }}"
     source: pull
+    state: present
 
 - name: Run/Update container
-  community.docker.docker_container:
+  docker_container:
     name: "{{ app_name }}"
     image: "{{ docker_image }}:{{ docker_tag }}"
     state: started
     restart_policy: unless-stopped
     published_ports:
       - "{{ host_port }}:{{ app_port }}"
+    pull: true
+    recreate: true
