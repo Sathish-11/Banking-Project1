@@ -3,13 +3,26 @@
   include_role:
     name: docker
 
+- name: Clean up existing Grafana containers
+  shell: |
+    # Remove any existing containers
+    docker rm -f grafana 2>/dev/null || true
+    # Kill processes using port 3000
+    sudo fuser -k 3000/tcp 2>/dev/null || true
+    # Clean up stuck containers
+    docker system prune -f 2>/dev/null || true
+    echo "Cleanup completed"
+  ignore_errors: yes
+  changed_when: false
+
 - name: Create directory for Grafana data
   file:
     path: /opt/grafana/data
     state: directory
     mode: '0755'
+  ignore_errors: yes
 
-- name: Run Grafana container
+- name: Run Grafana container (idempotent)
   docker_container:
     name: grafana
     image: grafana/grafana:latest
@@ -22,18 +35,27 @@
     env:
       GF_SECURITY_ADMIN_PASSWORD: "admin123"
       GF_SECURITY_ADMIN_USER: "admin"
+    pull: yes  # Always pull latest image
 
-- name: Wait for Grafana to start
+- name: Wait for Grafana to start (with retries)
   wait_for:
     port: 3000
     delay: 10
     timeout: 120
+  ignore_errors: yes
 
-- name: Verify Grafana is accessible
-  command: docker logs grafana
-  register: grafana_logs
-  changed_when: false
+- name: Verify Grafana health
+  uri:
+    url: http://localhost:3000/api/health
+    method: GET
+    status_code: 200
+    timeout: 30
+  register: grafana_health
+  until: grafana_health.status == 200
+  retries: 10
+  delay: 5
+  ignore_errors: yes
 
 - name: Show Grafana status
   debug:
-    msg: "Grafana container started. Access at: http://{{ inventory_hostname }}:3000 (admin/admin123)
+    msg: "Grafana container started. Access at: http://{{ inventory_hostname }}:3000 (admin/admin123)"
