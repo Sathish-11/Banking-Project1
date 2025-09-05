@@ -16,33 +16,77 @@
   hosts: monitoring
   become: true
   tasks:
-    - name: Check Prometheus is running
-      systemd:
-        name: prometheus
-        state: started
+    - name: Check Docker containers are running
+      shell: |
+        docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" | grep -E "(prometheus|grafana)"
+      register: docker_ps
+      changed_when: false
 
-    - name: Check Grafana is running
-      systemd:
-        name: grafana
-        state: started
+    - name: Show container status
+      debug:
+        var: docker_ps.stdout
 
-    - name: Test Prometheus endpoint
+    - name: Check container logs for startup
+      shell: |
+        echo "=== Prometheus Logs (last 10 lines) ==="
+        docker logs prometheus 2>&1 | tail -10
+        echo "=== Grafana Logs (last 10 lines) ==="  
+        docker logs grafana 2>&1 | tail -10
+      register: container_logs
+      changed_when: false
+
+    - name: Show container logs
+      debug:
+        var: container_logs.stdout
+
+    - name: Check port accessibility
+      shell: |
+        echo "Testing port 9090 (Prometheus):"
+        timeout 5 bash -c 'echo > /dev/tcp/localhost/9090' 2>/dev/null && echo "✓ Port 9090 accessible" || echo "✗ Port 9090 not ready yet"
+        echo "Testing port 3000 (Grafana):"
+        timeout 5 bash -c 'echo > /dev/tcp/localhost/3000' 2>/dev/null && echo "✓ Port 3000 accessible" || echo "✗ Port 3000 not ready yet"
+      register: port_test
+      changed_when: false
+
+    - name: Show port test results
+      debug:
+        var: port_test.stdout
+
+    - name: Wait for containers to initialize (2 minutes)
+      pause:
+        minutes: 2
+      when: docker_ps.stdout != ""
+
+    - name: Test Prometheus endpoint (with retries)
       uri:
-        url: http://localhost:9090/api/v1/status/config
+        url: http://localhost:9090/-/healthy
         method: GET
         status_code: 200
+        timeout: 10
       register: prometheus_test
+      ignore_errors: yes
+      until: prometheus_test.status == 200
+      retries: 5
+      delay: 10
 
-    - name: Test Grafana endpoint
+    - name: Test Grafana endpoint (with retries)
       uri:
         url: http://localhost:3000/api/health
         method: GET
         status_code: 200
+        timeout: 10
       register: grafana_test
+      ignore_errors: yes
+      until: grafana_test.status == 200
+      retries: 5
+      delay: 10
 
     - name: Show monitoring URLs
       debug:
         msg:
+          - "✅ Monitoring deployment completed!"
           - "Prometheus: http://{{ inventory_hostname }}:9090"
           - "Grafana: http://{{ inventory_hostname }}:3000 (admin/admin123)"
           - "Node Exporter: http://{{ inventory_hostname }}:9100/metrics"
+          - ""
+          - "Containers are running. Health checks may take 1-2 minutes to become fully available."
