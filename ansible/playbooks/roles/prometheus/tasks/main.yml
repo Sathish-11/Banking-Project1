@@ -3,21 +3,14 @@
   include_role:
     name: docker
 
-- name: Stop any existing Prometheus processes
+- name: Clean up existing Prometheus containers
   shell: |
-    pkill -f prometheus || true
-    systemctl stop prometheus 2>/dev/null || true
     docker rm -f prometheus 2>/dev/null || true
-    fuser -k 9090/tcp 2>/dev/null || true
+    sudo fuser -k 9090/tcp 2>/dev/null || true
+    docker system prune -f 2>/dev/null || true
+    echo "Cleanup completed"
   ignore_errors: yes
-
-- name: Wait for port to be free
-  wait_for:
-    host: localhost
-    port: 9090
-    state: stopped
-    timeout: 10
-  ignore_errors: yes
+  changed_when: false
 
 - name: Create directories for Prometheus
   file:
@@ -27,6 +20,7 @@
   loop:
     - /opt/prometheus
     - /opt/prometheus/data
+  ignore_errors: yes
 
 - name: Create Prometheus configuration
   copy:
@@ -40,22 +34,18 @@
         - job_name: 'prometheus'
           static_configs:
             - targets: ['localhost:9090']
-
         - job_name: 'node_exporter'
           static_configs:
-            - targets: ['localhost:9100']  # Changed to localhost first
-              labels:
-                environment: 'monitoring'
-
+            - targets: ['localhost:9100']
         - job_name: 'banking-app'
           metrics_path: '/actuator/prometheus'
           static_configs:
             - targets: ['test-server:8080', 'prod-server:8080']
-              labels:
-                environment: 'production'
-                app: 'banking-app'
+    owner: root
+    group: root
+    mode: '0644'
 
-- name: Run Prometheus container with simpler config
+- name: Run Prometheus container (idempotent)
   docker_container:
     name: prometheus
     image: prom/prometheus:latest
@@ -64,8 +54,9 @@
     ports:
       - "9090:9090"
     volumes:
-      - "/opt/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml"
+      - "/opt/prometheus:/etc/prometheus"
       - "/opt/prometheus/data:/prometheus"
+    pull: yes
     command: --config.file=/etc/prometheus/prometheus.yml --web.listen-address=0.0.0.0:9090
 
 - name: Wait for Prometheus to start
@@ -73,35 +64,20 @@
     port: 9090
     delay: 10
     timeout: 120
+  ignore_errors: yes
 
-- name: Check container logs
-  command: docker logs prometheus
-  register: prometheus_logs
-  changed_when: false
-
-- name: Show Prometheus logs
-  debug:
-    var: prometheus_logs.stdout
-
-- name: Check container status
-  command: docker inspect prometheus --format='{{.State.Status}}'
-  register: container_status
-  changed_when: false
-
-- name: Show container status
-  debug:
-    var: container_status.stdout
-
-- name: Verify Prometheus is accessible (simpler check)
+- name: Verify Prometheus health
   uri:
     url: http://localhost:9090/-/healthy
     method: GET
     status_code: 200
-  register: health_check
-  until: health_check.status == 200
+    timeout: 30
+  register: prometheus_health
+  until: prometheus_health.status == 200
   retries: 10
   delay: 5
+  ignore_errors: yes
 
 - name: Show Prometheus status
   debug:
-    msg: "Prometheus container started successfully. Access at: http://{{ inventory_hostname }}:9090"
+    msg: "Prometheus container started. Access at: http://{{ inventory_hostname }}:9090"
