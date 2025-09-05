@@ -1,49 +1,36 @@
 ---
-- name: Create prometheus user
-  user:
-    name: prometheus
-    system: yes
-    shell: /bin/false
+- name: Ensure Docker is installed
+  include_role:
+    name: docker
 
-- name: Create directories
+- name: Stop any existing Prometheus processes
+  shell: |
+    pkill -f prometheus || true
+    systemctl stop prometheus 2>/dev/null || true
+    docker rm -f prometheus 2>/dev/null || true
+    fuser -k 9090/tcp 2>/dev/null || true
+  ignore_errors: yes
+
+- name: Wait for port to be free
+  wait_for:
+    host: localhost
+    port: 9090
+    state: stopped
+    timeout: 10
+  ignore_errors: yes
+
+- name: Create directories for Prometheus
   file:
     path: "{{ item }}"
     state: directory
-    owner: prometheus
-    group: prometheus
     mode: '0755'
   loop:
-    - /etc/prometheus
-    - /var/lib/prometheus
-
-- name: Download Prometheus
-  unarchive:
-    src: https://github.com/prometheus/prometheus/releases/download/v2.51.2/prometheus-2.51.2.linux-amd64.tar.gz
-    dest: /opt
-    remote_src: yes
-    creates: /opt/prometheus-2.51.2.linux-amd64/prometheus
-
-- name: Copy Prometheus binary
-  copy:
-    remote_src: yes
-    src: /opt/prometheus-2.51.2.linux-amd64/prometheus
-    dest: /usr/local/bin/prometheus
-    owner: prometheus
-    group: prometheus
-    mode: '0755'
-
-- name: Copy promtool binary
-  copy:
-    remote_src: yes
-    src: /opt/prometheus-2.51.2.linux-amd64/promtool
-    dest: /usr/local/bin/promtool
-    owner: prometheus
-    group: prometheus
-    mode: '0755'
+    - /opt/prometheus
+    - /opt/prometheus/data
 
 - name: Create Prometheus configuration
   copy:
-    dest: /etc/prometheus/prometheus.yml
+    dest: /opt/prometheus/prometheus.yml
     content: |
       global:
         scrape_interval: 15s
@@ -56,9 +43,9 @@
 
         - job_name: 'node_exporter'
           static_configs:
-            - targets: ['test-server:9100', 'prod-server:9100']
+            - targets: ['localhost:9100']  # Changed to localhost first
               labels:
-                environment: 'production'
+                environment: 'monitoring'
 
         - job_name: 'banking-app'
           metrics_path: '/actuator/prometheus'
@@ -67,46 +54,54 @@
               labels:
                 environment: 'production'
                 app: 'banking-app'
-    owner: prometheus
-    group: prometheus
-    mode: '0644'
 
-- name: Create systemd service for Prometheus
-  copy:
-    dest: /etc/systemd/system/prometheus.service
-    content: |
-      [Unit]
-      Description=Prometheus Monitoring System
-      Documentation=https://prometheus.io/docs/introduction/overview/
-      After=network-online.target
-
-      [Service]
-      User=prometheus
-      Group=prometheus
-      Type=simple
-      ExecStart=/usr/local/bin/prometheus \
-        --config.file=/etc/prometheus/prometheus.yml \
-        --storage.tsdb.path=/var/lib/prometheus \
-        --web.console.templates=/etc/prometheus/consoles \
-        --web.console.libraries=/etc/prometheus/console_libraries \
-        --web.listen-address=0.0.0.0:9090
-      Restart=on-failure
-
-      [Install]
-      WantedBy=multi-user.target
-
-- name: Reload systemd
-  systemd:
-    daemon_reload: yes
-
-- name: Enable & start Prometheus
-  systemd:
+- name: Run Prometheus container with simpler config
+  docker_container:
     name: prometheus
-    enabled: yes
+    image: prom/prometheus:latest
     state: started
+    restart_policy: always
+    ports:
+      - "9090:9090"
+    volumes:
+      - "/opt/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml"
+      - "/opt/prometheus/data:/prometheus"
+    command: --config.file=/etc/prometheus/prometheus.yml --web.listen-address=0.0.0.0:9090
 
 - name: Wait for Prometheus to start
   wait_for:
     port: 9090
-    delay: 5
-    timeout: 60
+    delay: 10
+    timeout: 120
+
+- name: Check container logs
+  command: docker logs prometheus
+  register: prometheus_logs
+  changed_when: false
+
+- name: Show Prometheus logs
+  debug:
+    var: prometheus_logs.stdout
+
+- name: Check container status
+  command: docker inspect prometheus --format='{{.State.Status}}'
+  register: container_status
+  changed_when: false
+
+- name: Show container status
+  debug:
+    var: container_status.stdout
+
+- name: Verify Prometheus is accessible (simpler check)
+  uri:
+    url: http://localhost:9090/-/healthy
+    method: GET
+    status_code: 200
+  register: health_check
+  until: health_check.status == 200
+  retries: 10
+  delay: 5
+
+- name: Show Prometheus status
+  debug:
+    msg: "Prometheus container started successfully. Access at: http://{{ inventory_hostname }}:9090"
