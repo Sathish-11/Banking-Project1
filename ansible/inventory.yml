@@ -1,4 +1,3 @@
-# inventory.yml
 all:
   vars:
     ansible_user: devopsadmin
