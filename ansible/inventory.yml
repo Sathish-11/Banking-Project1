@@ -10,12 +10,12 @@ all:
     test:
       hosts:
         test-server:
-          ansible_host: 192.168.1.13
+          ansible_host: 192.168.1.12
     prod:
       hosts:
         prod-server:
-          ansible_host: 192.168.1.14
+          ansible_host: 192.168.1.13
     monitoring:  # Add monitoring group
       hosts:
         monitor-server:
-          ansible_host: 192.168.1.16  # or use one of your existing servers
+          ansible_host: 192.168.1.11  # or use one of your existing servers
