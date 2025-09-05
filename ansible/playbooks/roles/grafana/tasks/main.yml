@@ -1,116 +1,39 @@
 ---
-- name: Install dependencies
-  apt:
-    name:
-      - wget
-      - adduser
-      - libfontconfig1
-    state: present
-    update_cache: yes
+- name: Ensure Docker is installed
+  include_role:
+    name: docker
 
-- name: Download Grafana
-  get_url:
-    url: https://dl.grafana.com/oss/release/grafana-10.4.2.linux-amd64.tar.gz
-    dest: /tmp/grafana.tar.gz
-    # REMOVE THE CHECKSUM LINE - it's causing the error
-
-- name: Extract Grafana
-  unarchive:
-    src: /tmp/grafana.tar.gz
-    dest: /opt
-    remote_src: no
-    creates: /opt/grafana-10.4.2
-
-- name: Create grafana user
-  user:
-    name: grafana
-    system: yes
-    shell: /bin/false
-
-- name: Create data and log directories
+- name: Create directory for Grafana data
   file:
-    path: "{{ item }}"
+    path: /opt/grafana/data
     state: directory
-    owner: grafana
-    group: grafana
     mode: '0755'
-  loop:
-    - /var/lib/grafana
-    - /var/log/grafana
 
-- name: Copy Grafana binary
-  copy:
-    remote_src: yes
-    src: /opt/grafana-10.4.2/bin/grafana-server
-    dest: /usr/local/bin/grafana-server
-    mode: '0755'
-    owner: grafana
-    group: grafana
-
-- name: Create Grafana configuration
-  copy:
-    dest: /etc/grafana.ini
-    content: |
-      [server]
-      http_addr = 0.0.0.0
-      http_port = 3000
-      domain = localhost
-
-      [database]
-      type = sqlite3
-      path = /var/lib/grafana/grafana.db
-
-      [security]
-      admin_user = admin
-      admin_password = admin123
-      secret_key = SW2YcwTIb9zpOOhoPsMm
-
-      [auth.anonymous]
-      enabled = true
-      org_name = Main Org.
-      org_role = Viewer
-
-      [log]
-      mode = file
-      level = info
-    owner: grafana
-    group: grafana
-    mode: '0640'
-
-- name: Create systemd service for Grafana
-  copy:
-    dest: /etc/systemd/system/grafana.service
-    content: |
-      [Unit]
-      Description=Grafana
-      After=network-online.target
-
-      [Service]
-      User=grafana
-      Group=grafana
-      Type=simple
-      ExecStart=/usr/local/bin/grafana-server \
-        --config=/etc/grafana.ini \
-        --homepath=/opt/grafana-10.4.2 \
-        --packaging=tar
-      Restart=on-failure
-      LimitNOFILE=10000
-
-      [Install]
-      WantedBy=multi-user.target
-
-- name: Reload systemd
-  systemd:
-    daemon_reload: yes
-
-- name: Enable & start Grafana
-  systemd:
+- name: Run Grafana container
+  docker_container:
     name: grafana
-    enabled: yes
+    image: grafana/grafana:latest
     state: started
+    restart_policy: always
+    ports:
+      - "3000:3000"
+    volumes:
+      - "/opt/grafana/data:/var/lib/grafana"
+    env:
+      GF_SECURITY_ADMIN_PASSWORD: "admin123"
+      GF_SECURITY_ADMIN_USER: "admin"
 
 - name: Wait for Grafana to start
   wait_for:
     port: 3000
     delay: 10
     timeout: 120
+
+- name: Verify Grafana is accessible
+  command: docker logs grafana
+  register: grafana_logs
+  changed_when: false
+
+- name: Show Grafana status
+  debug:
+    msg: "Grafana container started. Access at: http://{{ inventory_hostname }}:3000 (admin/admin123)
