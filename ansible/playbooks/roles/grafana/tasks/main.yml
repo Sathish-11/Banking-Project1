@@ -12,7 +12,7 @@
   get_url:
     url: https://dl.grafana.com/oss/release/grafana-10.4.2.linux-amd64.tar.gz
     dest: /tmp/grafana.tar.gz
-    checksum: sha256:abc123...  # Add actual checksum if needed
+    # REMOVE THE CHECKSUM LINE - it's causing the error
 
 - name: Extract Grafana
   unarchive:
@@ -20,15 +20,6 @@
     dest: /opt
     remote_src: no
     creates: /opt/grafana-10.4.2
-
-- name: Verify extraction
-  command: ls -la /opt/grafana-10.4.2/bin/
-  register: grafana_bin
-  changed_when: false
-
-- name: Debug extraction
-  debug:
-    var: grafana_bin.stdout
 
 - name: Create grafana user
   user:
@@ -56,4 +47,70 @@
     owner: grafana
     group: grafana
 
-# ... rest of the tasks remain the same
+- name: Create Grafana configuration
+  copy:
+    dest: /etc/grafana.ini
+    content: |
+      [server]
+      http_addr = 0.0.0.0
+      http_port = 3000
+      domain = localhost
+
+      [database]
+      type = sqlite3
+      path = /var/lib/grafana/grafana.db
+
+      [security]
+      admin_user = admin
+      admin_password = admin123
+      secret_key = SW2YcwTIb9zpOOhoPsMm
+
+      [auth.anonymous]
+      enabled = true
+      org_name = Main Org.
+      org_role = Viewer
+
+      [log]
+      mode = file
+      level = info
+    owner: grafana
+    group: grafana
+    mode: '0640'
+
+- name: Create systemd service for Grafana
+  copy:
+    dest: /etc/systemd/system/grafana.service
+    content: |
+      [Unit]
+      Description=Grafana
+      After=network-online.target
+
+      [Service]
+      User=grafana
+      Group=grafana
+      Type=simple
+      ExecStart=/usr/local/bin/grafana-server \
+        --config=/etc/grafana.ini \
+        --homepath=/opt/grafana-10.4.2 \
+        --packaging=tar
+      Restart=on-failure
+      LimitNOFILE=10000
+
+      [Install]
+      WantedBy=multi-user.target
+
+- name: Reload systemd
+  systemd:
+    daemon_reload: yes
+
+- name: Enable & start Grafana
+  systemd:
+    name: grafana
+    enabled: yes
+    state: started
+
+- name: Wait for Grafana to start
+  wait_for:
+    port: 3000
+    delay: 10
+    timeout: 120
