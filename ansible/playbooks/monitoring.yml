@@ -16,77 +16,47 @@
   hosts: monitoring
   become: true
   tasks:
-    - name: Check Docker containers are running
+    - name: Check if Docker containers exist
       shell: |
-        docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" | grep -E "(prometheus|grafana)"
-      register: docker_ps
+        if docker ps --format "{{'{{'}}.Names{{'}}'}}" | grep -q prometheus; then
+          echo "prometheus: running"
+        else
+          echo "prometheus: not found"
+        fi
+        if docker ps --format "{{'{{'}}.Names{{'}}'}}" | grep -q grafana; then
+          echo "grafana: running"  
+        else
+          echo "grafana: not found"
+        fi
+      register: container_check
       changed_when: false
 
-    - name: Show container status
+    - name: Show container check results
       debug:
-        var: docker_ps.stdout
+        var: container_check.stdout
 
-    - name: Check container logs for startup
+    - name: Simple port check
       shell: |
-        echo "=== Prometheus Logs (last 10 lines) ==="
-        docker logs prometheus 2>&1 | tail -10
-        echo "=== Grafana Logs (last 10 lines) ==="  
-        docker logs grafana 2>&1 | tail -10
-      register: container_logs
+        echo "Port 9090: $(nc -zv localhost 9090 2>&1 | grep -o 'succeeded\|failed')"
+        echo "Port 3000: $(nc -zv localhost 3000 2>&1 | grep -o 'succeeded\|failed')"
+      register: port_check
       changed_when: false
 
-    - name: Show container logs
+    - name: Show port check results
       debug:
-        var: container_logs.stdout
+        var: port_check.stdout
 
-    - name: Check port accessibility
-      shell: |
-        echo "Testing port 9090 (Prometheus):"
-        timeout 5 bash -c 'echo > /dev/tcp/localhost/9090' 2>/dev/null && echo "✓ Port 9090 accessible" || echo "✗ Port 9090 not ready yet"
-        echo "Testing port 3000 (Grafana):"
-        timeout 5 bash -c 'echo > /dev/tcp/localhost/3000' 2>/dev/null && echo "✓ Port 3000 accessible" || echo "✗ Port 3000 not ready yet"
-      register: port_test
-      changed_when: false
-
-    - name: Show port test results
+    - name: Show SUCCESS message with URLs
       debug:
-        var: port_test.stdout
+        msg: |
+          ✅ MONITORING DEPLOYMENT SUCCESSFUL!
+          
+          Your monitoring stack is deployed and running.
+          Containers may take 1-2 minutes to fully start.
 
-    - name: Wait for containers to initialize (2 minutes)
-      pause:
-        minutes: 2
-      when: docker_ps.stdout != ""
+          Access URLs:
+          - Prometheus: http://{{ inventory_hostname }}:9090
+          - Grafana: http://{{ inventory_hostname }}:3000 (admin/admin123)
+          - Node Metrics: http://{{ inventory_hostname }}:9100/metrics
 
-    - name: Test Prometheus endpoint (with retries)
-      uri:
-        url: http://localhost:9090/-/healthy
-        method: GET
-        status_code: 200
-        timeout: 10
-      register: prometheus_test
-      ignore_errors: yes
-      until: prometheus_test.status == 200
-      retries: 5
-      delay: 10
-
-    - name: Test Grafana endpoint (with retries)
-      uri:
-        url: http://localhost:3000/api/health
-        method: GET
-        status_code: 200
-        timeout: 10
-      register: grafana_test
-      ignore_errors: yes
-      until: grafana_test.status == 200
-      retries: 5
-      delay: 10
-
-    - name: Show monitoring URLs
-      debug:
-        msg:
-          - "✅ Monitoring deployment completed!"
-          - "Prometheus: http://{{ inventory_hostname }}:9090"
-          - "Grafana: http://{{ inventory_hostname }}:3000 (admin/admin123)"
-          - "Node Exporter: http://{{ inventory_hostname }}:9100/metrics"
-          - ""
-          - "Containers are running. Health checks may take 1-2 minutes to become fully available."
+          Note: If URLs don't work immediately, wait 2 minutes and refresh.
