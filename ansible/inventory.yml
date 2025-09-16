@@ -6,9 +6,9 @@ all:
     test:
       hosts:
         test-vm:
-          ansible_host: 172.31.38.27
+          ansible_host: 192.168.0.145
     prod:
       hosts:
         prod-vm:
-          ansible_host: 172.31.38.233
+          ansible_host: 192.168.0.148
 
