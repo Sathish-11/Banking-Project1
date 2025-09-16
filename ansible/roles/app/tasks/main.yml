@@ -1,14 +1,14 @@
 ---
 - name: Pull Docker image
   community.docker.docker_image:
-    - name: "{{ docker_image }}:{{ docker_tag }"
-      source: pull
+    name: "{{ docker_image }}:{{ docker_tag }"
+    source: pull
 
 - name: Run/Update container
   community.docker.docker_container:
-    - name: "{{ app_name }}"
-      image: "{{ docker_image }}:{{ docker_tag }}"
-      state: started
-      restart_policy: unless-stopped
-      published_ports:
-        - "{{ host_port }}:{{ app_port }}"
+    name: "{{ app_name }}"
+    image: "{{ docker_image }}:{{ docker_tag }}"
+    state: started
+    restart_policy: unless-stopped
+    published_ports:
+      - "{{ host_port }}:{{ app_port }}"
