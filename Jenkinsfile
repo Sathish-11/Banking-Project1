@@ -50,7 +50,7 @@ pipeline {
         
         stage('Deploy Application on Dev Environment') {
             steps {
-                sshagent(['ansible-ssh']) {
+                sshagent(['ssh_key']) {
                     sh 'ansible-playbook -i ${ANSIBLE_INVENTORY} ansible/playbooks/deploy_app.yml --limit dev -e "docker_image=${DOCKER_IMAGE} docker_tag=${DOCKER_TAG}"'
                 }
             }    
@@ -58,7 +58,7 @@ pipeline {
         
         stage('Deploy Application on Stage Environment') {
             steps {
-                sshagent(['ansible-ssh']) {i
+                sshagent(['ssh_key']) {
                     sh 'ansible-playbook -i ${ANSIBLE_INVENTORY} ansible/playbooks/deploy_app.yml --limit stage -e "docker_image=${DOCKER_IMAGE} docker_tag=${DOCKER_TAG}"'
                 }
             }
@@ -67,7 +67,7 @@ pipeline {
         
         stage('Deploy Application on Production Environment') {
             steps {
-                sshagent(['ansible-ssh']) {
+                sshagent(['ssh_key']) {
                     sh 'ansible-playbook -i ${ANSIBLE_INVENTORY} ansible/playbooks/deploy_app.yml --limit prod -e "docker_image=${DOCKER_IMAGE} docker_tag=${DOCKER_TAG}"'
                 }
             }
