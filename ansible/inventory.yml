@@ -1,14 +1,18 @@
 all:
-  vars:
-    ansible_user: devopsadmin
-    ansible_python_interpreter: /usr/bin/python3
   children:
-    test:
+    dev:
       hosts:
-        test-vm:
-          ansible_host: 192.168.0.145
+        dev-server-1:
+          ansible_host: 3.109.133.94
+          ansible_user: devops
+    stage:
+      hosts:
+        stage-server-1:
+          ansible_host: 3.7.37.177
+          ansible_user: devops
     prod:
       hosts:
-        prod-vm:
-          ansible_host: 192.168.0.148
+        prod-server-1:
+          ansible_host: 13.200.237.18
+          ansible_user: devops
 
