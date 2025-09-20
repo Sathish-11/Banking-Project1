@@ -1,33 +1,28 @@
 ---
-- name: Install Docker on Ubuntu
-  hosts: all
-  become: yes
+- name: Update apt cache
+  apt:
+    update_cache: yes
 
-  tasks:
-    - name: Update apt cache
-      apt:
-        update_cache: yes
+- name: Install Docker
+  apt:
+    name: docker.io
+    state: present
 
-    - name: Install Docker
-      apt:
-        name: docker.io
-        state: present
+- name: Ensure Docker service is running and enabled
+  systemd:
+    name: docker
+    state: started
+    enabled: yes
 
-    - name: Ensure Docker service is running and enabled
-      systemd:
-        name: docker
-        state: started
-        enabled: yes
+- name: Add user to docker group
+  user:
+    name: "{{ ansible_user | default('ubuntu') }}"
+    groups: docker
+    append: yes
 
-    - name: Add user to docker group
-      user:
-        name: "{{ ansible_user | default('ubuntu') }}"
-        groups: docker
-        append: yes
-
-    - name: Ensure user can run sudo
-      user:
-        name: "{{ ansible_user | default('ubuntu') }}"
-        groups: sudo
-        append: yes
+- name: Ensure user can run sudo
+  user:
+    name: "{{ ansible_user | default('ubuntu') }}"
+    groups: sudo
+    append: yes
 
