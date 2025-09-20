@@ -48,21 +48,22 @@ pipeline {
             }
         }
         
-        stage('Deploy Application on Test Environment') {
+        stage('Deploy Application on Dev Environment') {
             steps {
                 sshagent(['ansible-ssh']) {
-                    sh 'ansible-playbook -i ${ANSIBLE_INVENTORY} ansible/playbooks/deploy_app.yml --limit test -e "docker_image=${DOCKER_IMAGE} docker_tag=${DOCKER_TAG}"'
+                    sh 'ansible-playbook -i ${ANSIBLE_INVENTORY} ansible/playbooks/deploy_app.yml --limit dev -e "docker_image=${DOCKER_IMAGE} docker_tag=${DOCKER_TAG}"'
                 }
             }    
         }
         
-        stage('Approval for Production Deployment') {
+        stage('Deploy Application on Stage Environment') {
             steps {
-                timeout(time: 1, unit: 'HOURS') {
-                    input message: 'Approve Deployment to Production?', ok: 'Deploy'
+                sshagent(['ansible-ssh']) {i
+                    sh 'ansible-playbook -i ${ANSIBLE_INVENTORY} ansible/playbooks/deploy_app.yml --limit stage -e "docker_image=${DOCKER_IMAGE} docker_tag=${DOCKER_TAG}"'
                 }
             }
         }
+
         
         stage('Deploy Application on Production Environment') {
             steps {
