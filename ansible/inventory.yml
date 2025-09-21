@@ -3,16 +3,16 @@ all:
     dev:
       hosts:
         dev-server-1:
-          ansible_host: 3.109.133.94
+          ansible_host: 13.234.232.252
           ansible_user: devops
     stage:
       hosts:
         stage-server-1:
-          ansible_host: 3.7.37.177
+          ansible_host: 13.233.46.58
           ansible_user: devops
     prod:
       hosts:
         prod-server-1:
-          ansible_host: 13.200.237.18
+          ansible_host: 52.66.227.169
           ansible_user: devops
 
