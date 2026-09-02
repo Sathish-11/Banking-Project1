@@ -1,7 +1,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: BankingApp
+  name: bankingApp
   labels:
     app: bank
   namespace: devops
@@ -16,7 +16,7 @@ spec:
         app: bank
     spec:
       containers:
-      - name: Bankapp
+      - name: bankapp
         image: ${DOCKER_IMG}:${DOCKER_TAG}
         ports:
         - containerPort: 8081
@@ -24,14 +24,13 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: Bankapp-service
+  name: bankapp-service
   namespace: devops
 spec:
   selector:
     app: bank
   type: NodePort
   ports:
-  - name: Bankapp-port
-    protocol: TCP
+  - protocol: TCP
     port: 8081
     targetPort: 8081
