@@ -10,11 +10,14 @@ spec:
   selector:
     matchLabels:
       app: bank
+  
   template:
     metadata:
       labels:
         app: bank
     spec:
+      imagePullSecrets:
+        - name: harbor-registry
       containers:
       - name: bankapp
         image: ${DOCKER_IMG}:${DOCKER_TAG}
